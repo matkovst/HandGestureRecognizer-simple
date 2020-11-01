@@ -2,10 +2,13 @@
 
 #include "gesture_recognizer.h"
 
-GestureRecognizer::GestureRecognizer(const float bg_alpha, const float skin_prior)
+GestureRecognizer::GestureRecognizer(const double bgAlpha, const float skinPrior)
 {
-    m_bgSubtractor = std::make_shared<SimpleBackgroundSubtractor>(bg_alpha);
-    m_skinSegmentator = std::make_shared<SkinSegmentator>(skin_prior);
+    m_bgAlpha = bgAlpha;
+    double mogHistory = 1500;
+    double mogVarThresh = 6*6.0;
+    m_bgSubtractor = cv::createBackgroundSubtractorMOG2(mogHistory, mogVarThresh, false);
+    m_skinSegmentator = std::make_shared<SkinSegmentator>(skinPrior);
     m_DISOptFlow = cv::DISOpticalFlow::create(cv::DISOpticalFlow::PRESET_MEDIUM);
 }
 
@@ -192,7 +195,7 @@ void GestureRecognizer::releaseLandmarks()
     m_fingerLandmarks.clear();
 }
 
-bool GestureRecognizer::observeHand(const cv::Mat& frame, const float skin_thresh, const float decisionThresh)
+bool GestureRecognizer::observeHand(const cv::Mat& frame, const float skinThresh, const float decisionThresh)
 {
     static int seeHand = 0;
     m_handContour.clear();
@@ -202,7 +205,8 @@ bool GestureRecognizer::observeHand(const cv::Mat& frame, const float skin_thres
     const int H = frame.rows;
     const int W = frame.cols;
     cv::Mat fgmask;
-    m_bgSubtractor->apply(frame, fgmask, (!m_hand));
+    double lrate = m_hand ? 0 : m_bgAlpha;
+    m_bgSubtractor->apply(frame, fgmask, lrate);
     cv::threshold(fgmask, fgmask, 70, 255, cv::THRESH_BINARY);
 
     cv::Mat open_kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(MORPH_KSIZE, MORPH_KSIZE));
@@ -239,7 +243,7 @@ bool GestureRecognizer::observeHand(const cv::Mat& frame, const float skin_thres
     /* Estimate skin */
     cv::Mat skin_mask;
     m_skinSegmentator->segment_skin(RoI, skin_mask, RoI);
-    cv::threshold(skin_mask, skin_mask, skin_thresh, 1.f, cv::THRESH_BINARY);
+    cv::threshold(skin_mask, skin_mask, skinThresh, 1.f, cv::THRESH_BINARY);
     float total_skin_sum = (float)cv::sum(skin_mask)[0];
     float normed_sum = total_skin_sum / (RoI.rows * RoI.cols);
 

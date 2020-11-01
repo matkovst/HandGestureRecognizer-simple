@@ -4,13 +4,11 @@
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 
-#define DEFAULT_ALPHA 1/25.f
-
 /* The class creates exponential forgetting background and generates absdiff foreground mask */
 class SimpleBackgroundSubtractor
 {
 public:
-    SimpleBackgroundSubtractor(float _alpha = DEFAULT_ALPHA);
+    SimpleBackgroundSubtractor(float _alpha = 1/25.f);
 
     ~SimpleBackgroundSubtractor();
 
@@ -24,7 +22,7 @@ public:
     void getBackgroundImage(cv::Mat& out);
 
 private:
-    float alpha { DEFAULT_ALPHA };
+    float alpha { 1/25.f };
     long long frame_num { 0 };
     cv::Mat f32_background;
     cv::Mat f32_mean;
