@@ -91,11 +91,11 @@ bool SkinSegmentator::segment_skin(const cv::Mat& _img, cv::Mat& out, const cv::
     cv::Mat mask;
     if (_mask.empty())
     {
-        mask = cv::Mat::ones(_img.rows, _img.cols, CV_8UC3);
+        mask = cv::Mat::ones(_img.rows, _img.cols, CV_8UC1);
     }
     else
     {
-        CV_Assert(_mask.type() == CV_8UC1 || _mask.type() == CV_8UC3);
+        CV_Assert(_mask.type() == CV_8UC1);
 
         mask = _mask;
     }

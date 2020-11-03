@@ -19,7 +19,7 @@ bool GestureRecognizer::seeHand()
     return m_hand;
 }
 
-int GestureRecognizer::recognize(const cv::Mat& _frame, bool visualize)
+GESTURE_TYPE GestureRecognizer::recognize(cv::Mat& _frame, bool debug, cv::Mat& debugFrame)
 {
     CV_Assert(!_frame.empty());
 
@@ -33,7 +33,7 @@ int GestureRecognizer::recognize(const cv::Mat& _frame, bool visualize)
 
     cv::GaussianBlur(frame, frame, cv::Size(3, 3), 0);
 
-    float decisionThresh = (m_hand) ? 0.0001f : 0.01f;
+    float decisionThresh = (m_hand) ? 0.08f : 0.02f;
     m_hand = observeHand(frame, 0.2f, decisionThresh);
     if (m_hand)
     {
@@ -50,30 +50,30 @@ int GestureRecognizer::recognize(const cv::Mat& _frame, bool visualize)
     }
     else
     {
+        m_prevColorizedFg.release();
         releaseLandmarks();
     }
-
     cv::swap(m_prevFrame, frame);
     
-    /* Display */
-    if (visualize)
+    /* Visualize debug info */
+    if (debug)
     {
-        cv::Mat display = frame.clone();
-        cv::Mat handDisplay = cv::Mat::zeros(H, W, CV_8UC3);
-        cv::Mat fgDisplay;
-        cv::cvtColor(m_foregroundMask, fgDisplay, cv::COLOR_GRAY2BGR);
+        debugFrame = cv::Mat::zeros(H, W, CV_8UC3);
+        // cv::imshow("FG", m_foregroundMask);
 
         if (m_fingerLandmarks.size() == 5)
         {
             for (int i = 0; i < 5; i++)
             {
-                cv::circle(display, m_fingerLandmarks[i], 25, cv::Scalar(40, 220, 40), 3);
-                cv::line(display, m_fingerLandmarks[i], m_palmCenter, cv::Scalar(255, 255, 255), 2);
+                cv::circle(_frame, m_fingerLandmarks[i], 20, cv::Scalar(40, 220, 40), 3);
             }
-            cv::circle(display, m_palmCenter, 15, cv::Scalar(255, 0, 255), 3);
+            cv::circle(_frame, m_palmCenter, 15, cv::Scalar(255, 0, 255), 3);
 
-            if (!m_handContour.empty()) cv::fillPoly(handDisplay, std::vector<std::vector<cv::Point>>(1, m_handContour), cv::Scalar(255, 255, 255));
-            if (!m_handHull.empty()) cv::drawContours(fgDisplay, std::vector<std::vector<cv::Point>>(1, m_handHull), -1, cv::Scalar(255, 0, 255), 2);
+            if (!m_handContour.empty())
+            {
+                cv::fillPoly(debugFrame, std::vector<std::vector<cv::Point>>(1, m_handContour), cv::Scalar(255, 255, 255));
+            }
+            if (!m_handHull.empty()) cv::drawContours(debugFrame, std::vector<std::vector<cv::Point>>(1, m_handHull), -1, cv::Scalar(255, 0, 255), 2);
 
             // optflow visualization
             if (!m_flow.empty())
@@ -83,39 +83,12 @@ int GestureRecognizer::recognize(const cv::Mat& _frame, bool visualize)
                 cv::imshow("Flow", flowDisplay);
             }
         }
-        
-        // if (!handHull.empty())
-        // {
-            // cv::drawContours(display, std::vector<std::vector<cv::Point>>(1, handHull), -1, cv::Scalar(255, 0, 255), 2);
-            // for (int i = 0; i < 5; i++)
-            // {
-            //     cv::circle(display, goodFeatures[i], 25, cv::Scalar(0, 255, 0), 2);
-            // }
-            // std::vector<cv::Vec4i>::iterator it = handHullDefects.begin();
-            // while( it != handHullDefects.end() ) {
-            //     cv::Vec4i& v = (*it);
-            //     int startidx = v[0]; cv::Point ptStart( handContour[startidx] );
-            //     int endidx = v[1]; cv::Point ptEnd( handContour[endidx] );
-            //     int faridx = v[2]; cv::Point ptFar( handContour[faridx] );
-            //     float depth = v[3] / 256;
 
-            //     cv::line( display, ptStart, ptEnd, cv::Scalar(0, 255, 0), 1 );
-            //     // cv::line( display, ptStart, ptFar, cv::Scalar(0, 255, 0), 1 );
-            //     // cv::line( display, ptEnd, ptFar, cv::Scalar(0, 255, 0), 1 );
-            //     //cv::circle( display, ptFar, 4, cv::Scalar(0, 255, 0), 2 );
-            //     it++;
-            // }
-        //     cv::fillPoly(handDisplay, std::vector<std::vector<cv::Point>>(1, handContour), cv::Scalar(255, 255, 255));
-        // }
-
-        drawGestureArea(display);
-        cv::Mat stacked(display.rows, display.cols * 2, CV_8UC3, cv::Scalar::all(0));
-        display.copyTo(stacked.colRange(0, display.cols));
-        fgDisplay.copyTo(stacked.colRange(display.cols, display.cols * 2));
-        cv::imshow(WINDOW_NAME, stacked);
+        drawGestureArea(_frame);
+        drawStrings(_frame);
     }
 
-    return 0;
+    return detectGesture();
 }
 
 void GestureRecognizer::generateLandmarks()
@@ -125,6 +98,7 @@ void GestureRecognizer::generateLandmarks()
     getLandmarks(m_fingerLandmarks);
     if (m_fingerLandmarks.empty()) return;
     getPalmCenter();
+    getPalmStrings();
 
     double fingerArea = m_fingerBox.area();
     double handArea = cv::contourArea(m_handContour);
@@ -165,6 +139,26 @@ void GestureRecognizer::getPalmCenter()
     m_palmCenter = cv::Point2f(handCenter_x, handCenter_y);
 }
 
+void GestureRecognizer::getPalmStrings()
+{
+    if (m_palmStrings.empty())
+    {
+        for (int i = 0; i < 5; i++)
+        {
+            m_palmStrings.emplace_back(m_fingerLandmarks[i], m_palmCenter);
+        }
+    }
+    else
+    {
+        for (int i = 0; i < 5; i++)
+        {
+            m_palmStrings[i].start = m_fingerLandmarks[i];
+            m_palmStrings[i].end = m_palmCenter;
+        }
+    }
+    
+}
+
 void GestureRecognizer::trackLandmarks(const cv::Mat& prevFrame, const cv::Mat& frame)
 {
     if (m_fingerLandmarks.empty()) return;
@@ -183,6 +177,7 @@ void GestureRecognizer::trackLandmarks(const cv::Mat& prevFrame, const cv::Mat& 
     /* Update landmarks */
     std::swap(currFingerLandmarks, m_fingerLandmarks);
     getPalmCenter();
+    getPalmStrings();
 
     // m_fingerLandmarks.clear();
     // getLandmarks(m_fingerLandmarks);
@@ -193,6 +188,9 @@ void GestureRecognizer::trackLandmarks(const cv::Mat& prevFrame, const cv::Mat& 
 void GestureRecognizer::releaseLandmarks()
 {
     m_fingerLandmarks.clear();
+    m_palmStrings.clear();
+    m_handContour.clear();
+    m_handHull.clear();
 }
 
 bool GestureRecognizer::observeHand(const cv::Mat& frame, const float skinThresh, const float decisionThresh)
@@ -221,15 +219,14 @@ bool GestureRecognizer::observeHand(const cv::Mat& frame, const float skinThresh
     /* Derive largest contour = hand */
     cv::Mat morphed_fgmask_ROI = m_foregroundMask(handROI(W, H));
     std::vector<std::vector<cv::Point>> contours;
-    int handContourId = -1;
     cv::findContours( morphed_fgmask_ROI, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE, getROIOffset(W, H) );
-    if (contours.empty())
+    int handContourId = getMaxAreaContourId(contours);
+    if (contours.empty() || handContourId == -1)
     {
         seeHand--;
         if (seeHand < 0) seeHand = 0;
-        return (seeHand >= 6);
+        return (seeHand >= DEFAULT_HAND_FRAMES);
     }
-    handContourId = getMaxAreaContourId(contours);
     m_handContour = contours.at(handContourId);
     double eps = 0.001*cv::arcLength(m_handContour, true);
     cv::approxPolyDP(m_handContour, m_handContour, eps, true);
@@ -242,31 +239,18 @@ bool GestureRecognizer::observeHand(const cv::Mat& frame, const float skinThresh
 
     /* Estimate skin */
     cv::Mat skin_mask;
-    m_skinSegmentator->segment_skin(RoI, skin_mask, RoI);
+    cv::Mat skin_binary_mask;
+    cv::cvtColor(RoI, skin_binary_mask, cv::COLOR_BGR2GRAY);
+    m_skinSegmentator->segment_skin(RoI, skin_mask, skin_binary_mask);
     cv::threshold(skin_mask, skin_mask, skinThresh, 1.f, cv::THRESH_BINARY);
     float total_skin_sum = (float)cv::sum(skin_mask)[0];
     float normed_sum = total_skin_sum / (RoI.rows * RoI.cols);
 
     seeHand = (normed_sum >= decisionThresh && normed_sum < 0.8) ? (seeHand + 1) : (seeHand - 1);
     if (seeHand < 0) seeHand = 0;
-    if (seeHand > 12) seeHand = 12;
+    if (seeHand > DEFAULT_HAND_FRAMES*2) seeHand = DEFAULT_HAND_FRAMES*2;
 
-    return (seeHand >= 6);
-}
-
-void GestureRecognizer::drawGestureArea(cv::Mat& frame)
-{
-    cv::Rect RoI = handROI(frame.cols, frame.rows);
-    if (m_hand) 
-    {
-        cv::rectangle(frame, RoI, cv::Scalar(40, 220, 40), 2);
-        cv::putText(frame, "Hand", cv::Point(RoI.x + 10, RoI.y + 20), cv::FONT_HERSHEY_PLAIN, 1.2, cv::Scalar(0, 255, 0), 2, cv::LINE_4);
-    }
-    else 
-    {
-        cv::rectangle(frame, RoI, cv::Scalar(0, 0, 255), 2);
-        cv::putText(frame, "No hand", cv::Point(RoI.x + 10, RoI.y + 20), cv::FONT_HERSHEY_PLAIN, 1.2, cv::Scalar(0, 0, 255), 2, cv::LINE_4);
-    }
+    return (seeHand >= DEFAULT_HAND_FRAMES);
 }
 
 int GestureRecognizer::getMaxAreaContourId(std::vector<std::vector<cv::Point>> contours)
@@ -301,7 +285,20 @@ cv::Point GestureRecognizer::getROIOffset(const int W, const int H)
     return cv::Point((int)(0.01 * W), (int)(0.01 * H));
 }
 
-
+void GestureRecognizer::drawGestureArea(cv::Mat& frame)
+{
+    cv::Rect RoI = handROI(frame.cols, frame.rows);
+    if (m_hand) 
+    {
+        cv::rectangle(frame, RoI, cv::Scalar(40, 220, 40), 2);
+        cv::putText(frame, "Hand", cv::Point(RoI.x + 10, RoI.y + 20), cv::FONT_HERSHEY_PLAIN, 1.2, cv::Scalar(0, 255, 0), 2, cv::LINE_4);
+    }
+    else 
+    {
+        cv::rectangle(frame, RoI, cv::Scalar(0, 0, 255), 2);
+        cv::putText(frame, "No hand", cv::Point(RoI.x + 10, RoI.y + 20), cv::FONT_HERSHEY_PLAIN, 1.2, cv::Scalar(0, 0, 255), 2, cv::LINE_4);
+    }
+}
 
 // Convert vector magnitude to jet color
 cv::Scalar GestureRecognizer::jet(cv::Point2f vv)
@@ -363,4 +360,35 @@ void GestureRecognizer::drawHeatmap(const cv::Mat& flow, cv::Mat& out)
 
     magnitude.convertTo(magnitude, CV_8UC1);
     cv::applyColorMap(magnitude, out, cv::COLORMAP_JET);
+}
+
+void GestureRecognizer::drawStrings(cv::Mat& frame)
+{
+    if (m_palmStrings.empty()) return;
+    if (m_fingerLandmarks.empty()) return;
+
+    for (int i = 0; i < 5; i++)
+    {
+        if (m_palmStrings[i].length() < m_palmStrings[i].initialLength*(3/4.f))
+        {
+            cv::line(frame, m_fingerLandmarks[i], m_palmCenter, cv::Scalar(0, 0, 255), 2);
+        }
+        else
+        {
+            cv::line(frame, m_fingerLandmarks[i], m_palmCenter, cv::Scalar(255, 255, 255), 2);
+        }
+    }
+}
+
+GESTURE_TYPE GestureRecognizer::detectGesture()
+{
+    if (m_palmStrings.empty()) return GESTURE_TYPE::NONE;
+    if (m_fingerLandmarks.empty()) return GESTURE_TYPE::NONE;
+
+    int gesture = 0;
+    for (int i = 0; i < 5; i++)
+    {
+        gesture += m_palmStrings[i].hasAct() ? (i+1) : 0;
+    }
+    return (GESTURE_TYPE)gesture;
 }

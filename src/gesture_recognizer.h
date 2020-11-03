@@ -13,18 +13,76 @@
 
 #define DEFAULT_ALPHA 1/(25.0*60)
 #define DEFAULT_SKIN_PRIOR 70/100.f
-#define MORPH_KSIZE 3
 #define DEFAULT_THRESH 20
+#define DEFAULT_HAND_FRAMES 10
+#define MORPH_KSIZE 3
 #define SKIN_THRESH 0.2f
 #define MIN_SKIN_DECISION 0.05f
-#define WINDOW_NAME "Gesture recognition"
+
+enum GESTURE_TYPE
+{
+    NONE            = 0,
+    ACT_LFINGER     = 1,
+    ACT_RFINGER     = 2,
+    ACT_LRFINGER    = 3,
+    ACT_MFINGER     = 4,
+    ACT_LMFINGER    = 5,
+    ACT_RMFINGER    = 6,
+    ACT_LRMFINGER   = 7,
+    ACT_PFINGER     = 8,
+    ACT_LPFINGER    = 9,
+    ACT_RPFINGER    = 10,
+    ACT_LRPFINGER   = 11,
+    ACT_MPFINGER    = 12,
+    ACT_LMPFINGER   = 13,
+    ACT_RMPFINGER   = 14,
+    ACT_LRMPFINGER  = 15,
+    ACT_TFINGER     = 16,
+    ACT_LTFINGER    = 17,
+    ACT_RTFINGER    = 18,
+    ACT_LRTFINGER   = 19,
+    ACT_MTFINGER    = 20,
+    ACT_LMTFINGER   = 21,
+    ACT_RMTFINGER   = 22,
+    ACT_LRMTFINGER  = 23,
+    ACT_PTFINGER    = 24,
+    ACT_LPTFINGER   = 25,
+    ACT_RPTFINGER   = 26,
+    ACT_LRPTFINGER  = 27,
+    ACT_MPTFINGER   = 28,
+    ACT_LMPTFINGER  = 29,
+    ACT_RMPTFINGER  = 30,
+    ACT_LRMPTFINGER = 31
+};
+
+struct PalmString
+{
+    cv::Point start;
+    cv::Point end;
+    float initialLength { 0.f };
+
+    PalmString(cv::Point _start, cv::Point _end)
+    {
+        start = _start;
+        end = _end;
+        initialLength = length();
+    }
+    float length()
+    {
+        return sqrtf(powf(end.x - start.x, 2) + powf(end.y - start.y, 2));
+    }
+    bool hasAct()
+    {
+        return length() < initialLength*(3/4.f);
+    }
+};
 
 class GestureRecognizer
 {
 public:
     GestureRecognizer(const double bgAlpha = DEFAULT_ALPHA, const float skinPrior = DEFAULT_SKIN_PRIOR);
     ~GestureRecognizer();
-    int recognize(const cv::Mat& _frame, bool visualize = false);
+    GESTURE_TYPE recognize(cv::Mat& _frame, bool debug = false, cv::Mat& debugFrame = cv::Mat());
     bool seeHand();
 
 private:
@@ -39,6 +97,7 @@ private:
     std::vector<cv::Point2f> m_fingerLandmarks;
     cv::Point2f m_palmCenter;
     cv::Rect m_fingerBox;
+    std::vector<PalmString> m_palmStrings;
     cv::Mat m_flow;
     cv::Mat m_prevFrame;
     cv::Mat m_prevColorizedFg;
@@ -47,13 +106,16 @@ private:
     void generateLandmarks();
     void getLandmarks(std::vector<cv::Point2f>& out);
     void getPalmCenter();
+    void getPalmStrings();
     void trackLandmarks(const cv::Mat& prevFrame, const cv::Mat& frame);
     void releaseLandmarks();
+    GESTURE_TYPE detectGesture();
     cv::Rect handROI(const int W, const int H);
     cv::Point getROIOffset(const int W, const int H);
     int getMaxAreaContourId(std::vector<std::vector<cv::Point>> contours);
 
     void drawGestureArea(cv::Mat& frame);
+    void drawStrings(cv::Mat& frame);
     void drawMotionField(const cv::Mat& flow, cv::Mat& out, int stride);
     void drawHeatmap(const cv::Mat& flow, cv::Mat& out);
     cv::Scalar jet(cv::Point2f vv);

@@ -12,6 +12,7 @@
 #include "src/gesture_recognizer.h"
 
 #define OPENCV_THREADS 4
+#define WINDOW_NAME "Gesture recognition"
 
 int run_stream(int argc, char** argv)
 {
@@ -23,6 +24,9 @@ int run_stream(int argc, char** argv)
         return -1;
     }
     std::string inputpath = argv[1];
+
+    bool debug = false;
+    if (argc > 2) debug = (atoi(argv[2]) == 1) ? true : false;
 
     cv::VideoCapture capture;
     if (inputpath == "0") capture.open(0);
@@ -44,8 +48,7 @@ int run_stream(int argc, char** argv)
     const int H = frame.rows;
     const int W = frame.cols;
 
-    GestureRecognizer gRecognizer(1/(25.f*60));
-    bool visualize_debug = true;
+    GestureRecognizer gRecognizer(1/(25.f*60*5));
 
     // main loop
     while (true)
@@ -59,14 +62,30 @@ int run_stream(int argc, char** argv)
         clock_t begin = clock();
         /* ---------- CORE ---------- */
 
-        gRecognizer.recognize(frame, visualize_debug);
+        GESTURE_TYPE gesture;
+        cv::Mat debugFrame;
+        gesture = gRecognizer.recognize(frame, debug, debugFrame);
 
         /* ---------- //// ---------- */
         clock_t end = clock();
-        double elapsed = double(end - begin) / CLOCKS_PER_SEC;
+        int elapsed = int(float(end - begin) / (CLOCKS_PER_SEC / 1000));
         // std::cout << "info: Stream elapsed: " << elapsed << std::endl;
 
-        if (!visualize_debug) cv::imshow("Stream", frame);
+        /* Visualize */
+        if (debug)
+        {
+            cv::putText(frame, "det. time: " + std::to_string(elapsed) + " ms", cv::Point(10, frame.rows - 20), cv::FONT_HERSHEY_PLAIN, 1.2, cv::Scalar(0, 255, 0));
+            cv::putText(frame, "Gesture: " + std::to_string(gesture), cv::Point(10, frame.rows - 40), cv::FONT_HERSHEY_PLAIN, 1.2, cv::Scalar(0, 255, 0));
+            cv::Mat stacked(frame.rows, frame.cols * 2, CV_8UC3, cv::Scalar::all(0));
+            frame.copyTo(stacked.colRange(0, frame.cols));
+            debugFrame.copyTo(stacked.colRange(frame.cols, frame.cols * 2));
+            cv::imshow(WINDOW_NAME, stacked);
+        }
+        else
+        {
+            cv::imshow(WINDOW_NAME, frame);
+        }
+        
         char c = (char)cv::waitKey(10);
 #ifdef _WIN32
         if( c == 27 )
