@@ -14,7 +14,7 @@
 #define DEFAULT_ALPHA 1/(25.0*60)
 #define DEFAULT_SKIN_PRIOR 70/100.f
 #define DEFAULT_THRESH 20
-#define DEFAULT_HAND_FRAMES 10
+#define DEFAULT_HAND_FRAMES 15
 #define MORPH_KSIZE 3
 #define SKIN_THRESH 0.2f
 #define MIN_SKIN_DECISION 0.05f
@@ -29,14 +29,14 @@ enum GESTURE_TYPE
     ACT_LMFINGER    = 5,
     ACT_RMFINGER    = 6,
     ACT_LRMFINGER   = 7,
-    ACT_PFINGER     = 8,
-    ACT_LPFINGER    = 9,
-    ACT_RPFINGER    = 10,
-    ACT_LRPFINGER   = 11,
-    ACT_MPFINGER    = 12,
-    ACT_LMPFINGER   = 13,
-    ACT_RMPFINGER   = 14,
-    ACT_LRMPFINGER  = 15,
+    ACT_IFINGER     = 8,
+    ACT_LIFINGER    = 9,
+    ACT_RIFINGER    = 10,
+    ACT_LRIFINGER   = 11,
+    ACT_MIFINGER    = 12,
+    ACT_LMIFINGER   = 13,
+    ACT_RMIFINGER   = 14,
+    ACT_LRMIFINGER  = 15,
     ACT_TFINGER     = 16,
     ACT_LTFINGER    = 17,
     ACT_RTFINGER    = 18,
@@ -45,15 +45,17 @@ enum GESTURE_TYPE
     ACT_LMTFINGER   = 21,
     ACT_RMTFINGER   = 22,
     ACT_LRMTFINGER  = 23,
-    ACT_PTFINGER    = 24,
-    ACT_LPTFINGER   = 25,
-    ACT_RPTFINGER   = 26,
-    ACT_LRPTFINGER  = 27,
-    ACT_MPTFINGER   = 28,
-    ACT_LMPTFINGER  = 29,
-    ACT_RMPTFINGER  = 30,
-    ACT_LRMPTFINGER = 31
+    ACT_ITFINGER    = 24,
+    ACT_LITFINGER   = 25,
+    ACT_RITFINGER   = 26,
+    ACT_LRITFINGER  = 27,
+    ACT_MITFINGER   = 28,
+    ACT_LMITFINGER  = 29,
+    ACT_RMITFINGER  = 30,
+    ACT_LRMITFINGER = 31
 };
+
+static const char* fingerNames[] = { "little", "ring", "middle", "index", "thumb" };
 
 struct PalmString
 {
@@ -112,7 +114,7 @@ private:
     GESTURE_TYPE detectGesture();
     cv::Rect handROI(const int W, const int H);
     cv::Point getROIOffset(const int W, const int H);
-    int getMaxAreaContourId(std::vector<std::vector<cv::Point>> contours);
+    int getMaxAreaContourId(const std::vector<std::vector<cv::Point>>& contours);
 
     void drawGestureArea(cv::Mat& frame);
     void drawStrings(cv::Mat& frame);

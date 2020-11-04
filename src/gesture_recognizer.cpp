@@ -65,15 +65,16 @@ GESTURE_TYPE GestureRecognizer::recognize(cv::Mat& _frame, bool debug, cv::Mat& 
         {
             for (int i = 0; i < 5; i++)
             {
-                cv::circle(_frame, m_fingerLandmarks[i], 20, cv::Scalar(40, 220, 40), 3);
+                cv::circle(_frame, m_fingerLandmarks[i], 20, cv::Scalar(40, 220, 40), 2);
+                cv::putText(_frame, fingerNames[i], cv::Point(m_fingerLandmarks[i].x - 15, m_fingerLandmarks[i].y - 25), cv::FONT_HERSHEY_PLAIN, 1.2, cv::Scalar(40, 220, 40), 1);
             }
-            cv::circle(_frame, m_palmCenter, 15, cv::Scalar(255, 0, 255), 3);
+            cv::circle(_frame, m_palmCenter, 15, cv::Scalar(255, 127, 0), 3);
 
             if (!m_handContour.empty())
             {
                 cv::fillPoly(debugFrame, std::vector<std::vector<cv::Point>>(1, m_handContour), cv::Scalar(255, 255, 255));
             }
-            if (!m_handHull.empty()) cv::drawContours(debugFrame, std::vector<std::vector<cv::Point>>(1, m_handHull), -1, cv::Scalar(255, 0, 255), 2);
+            if (!m_handHull.empty()) cv::drawContours(debugFrame, std::vector<std::vector<cv::Point>>(1, m_handHull), -1, cv::Scalar(255, 127, 0), 2);
 
             // optflow visualization
             if (!m_flow.empty())
@@ -125,7 +126,9 @@ void GestureRecognizer::getLandmarks(std::vector<cv::Point2f>& out)
             // Get top 5 points
             std::vector<cv::Point> handHullSorted(m_handHull);
             std::sort(handHullSorted.begin(), handHullSorted.end(),
-                [](const cv::Point &a, const cv::Point &b) -> bool const { return (a.y) < (b.y); });
+                [](const cv::Point &a, const cv::Point &b) -> bool const { return (a.y) < (b.y); }); // <- get top 5 vertices
+            std::sort(handHullSorted.begin(), handHullSorted.begin() + 5,
+                [](const cv::Point &a, const cv::Point &b) -> bool const { return (a.x) < (b.x); }); // <- get sorted fingers
             for (int i = 0; i < 5; i++) out.push_back(cv::Point2f((float)handHullSorted[i].x, (float)handHullSorted[i].y));
     }
 }
@@ -238,6 +241,7 @@ bool GestureRecognizer::observeHand(const cv::Mat& frame, const float skinThresh
     cv::approxPolyDP(m_handHull, m_handHull, eps, true);
 
     /* Estimate skin */
+    cv::resize(RoI, RoI, cv::Size(0, 0), 0.5, 0.5, cv::INTER_AREA);
     cv::Mat skin_mask;
     cv::Mat skin_binary_mask;
     cv::cvtColor(RoI, skin_binary_mask, cv::COLOR_BGR2GRAY);
@@ -253,7 +257,7 @@ bool GestureRecognizer::observeHand(const cv::Mat& frame, const float skinThresh
     return (seeHand >= DEFAULT_HAND_FRAMES);
 }
 
-int GestureRecognizer::getMaxAreaContourId(std::vector<std::vector<cv::Point>> contours)
+int GestureRecognizer::getMaxAreaContourId(const std::vector<std::vector<cv::Point>>& contours)
 {
     if (contours.empty()) return -1;
 
@@ -371,11 +375,11 @@ void GestureRecognizer::drawStrings(cv::Mat& frame)
     {
         if (m_palmStrings[i].length() < m_palmStrings[i].initialLength*(3/4.f))
         {
-            cv::line(frame, m_fingerLandmarks[i], m_palmCenter, cv::Scalar(0, 0, 255), 2);
+            cv::line(frame, m_fingerLandmarks[i], m_palmCenter, cv::Scalar(255, 127, 0), 2);
         }
         else
         {
-            cv::line(frame, m_fingerLandmarks[i], m_palmCenter, cv::Scalar(255, 255, 255), 2);
+            cv::line(frame, m_fingerLandmarks[i], m_palmCenter, cv::Scalar(40, 220, 40), 2);
         }
     }
 }

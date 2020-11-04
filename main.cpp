@@ -28,7 +28,10 @@ int run_stream(int argc, char** argv)
     bool debug = false;
     if (argc > 2) debug = (atoi(argv[2]) == 1) ? true : false;
 
-    cv::VideoCapture capture;
+    bool record = false;
+    if (argc > 3) record = (atoi(argv[3]) == 1) ? true : false;
+
+    cv::VideoCapture capture(cv::CAP_GSTREAMER);
     if (inputpath == "0") capture.open(0);
     else if (inputpath == "1") capture.open(1);
     else capture.open(inputpath);
@@ -47,6 +50,8 @@ int run_stream(int argc, char** argv)
     }
     const int H = frame.rows;
     const int W = frame.cols;
+
+    cv::VideoWriter writer("output.wmv", cv::VideoWriter::fourcc('W', 'M', 'V', '2'), 20, cv::Size(frame.cols * 2, frame.rows), true);
 
     GestureRecognizer gRecognizer(1/(25.f*60*5));
 
@@ -80,6 +85,11 @@ int run_stream(int argc, char** argv)
             frame.copyTo(stacked.colRange(0, frame.cols));
             debugFrame.copyTo(stacked.colRange(frame.cols, frame.cols * 2));
             cv::imshow(WINDOW_NAME, stacked);
+
+            if (record)
+            {
+                writer.write(stacked);
+            }
         }
         else
         {
@@ -100,6 +110,7 @@ int run_stream(int argc, char** argv)
 #endif
     }
     capture.release();
+    writer.release();
     cv::destroyAllWindows();
 
     std::cout << "info: Gesture recognition finished on stream." << std::endl;
